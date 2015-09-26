@@ -122,9 +122,10 @@ public class TextEditor extends JComponent implements
      * @param g the <code>Graphics</code> context in which to paint
      */
     @Override
-    public void paint(Graphics g) {
-        paintTestText(g);
+    public void paintComponent(Graphics g) {
+        super.paintComponent(g);
         paintCursor(g);
+        paintTestText(g);
     }
 
     /**
@@ -134,20 +135,27 @@ public class TextEditor extends JComponent implements
      */
     private void paintCursor(Graphics g) {
         //        Paint cursor.
-        int verticalStep = g.getFontMetrics().getMaxAscent();
+        final int verticalStep = g.getFontMetrics().getMaxAscent();
         Location cursorLocation = mTextEditorModel.getCursorLocation();
         String subString = mTextEditorModel
                 .linesRange(cursorLocation.getY(), cursorLocation.getY() + 1)
                 .next()
                 .substring(0, cursorLocation.getX());
-        int horizontalStep = g.getFontMetrics().stringWidth(subString);
+        final int horizontalStep = g.getFontMetrics().stringWidth(subString);
 
 //        System.out.println(cursorLocation.toString());
+        g.drawRect(
+                50,
+                50,
+                50,
+                50
+        );
+
         g.drawLine(
                 horizontalStep + mPadding,
                 cursorLocation.getY() * verticalStep + mPadding,
                 horizontalStep + mPadding,
-                cursorLocation.getY() * verticalStep + verticalStep + mPadding
+                (cursorLocation.getY() * verticalStep + mPadding) + verticalStep
         );
     }
 
@@ -157,16 +165,7 @@ public class TextEditor extends JComponent implements
      * @param g {@link Graphics}.
      */
     private void paintTestText(Graphics g) {
-        int verticalStep = g.getFontMetrics().getMaxAscent();
-
-//        g.setColor(Color.blue);
-//        g.fillRect(
-//                mPadding,
-//                verticalStep + mPadding + 2,
-//                50,
-//                -verticalStep
-//        );
-//        g.setColor(Color.black);
+        final int verticalStep = g.getFontMetrics().getMaxAscent();
 
         Point writingCoordinates = new Point(
                 mPadding,
