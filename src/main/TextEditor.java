@@ -3,6 +3,7 @@ package main;
 import main.actions.Direction;
 import main.actions.MoveCursorAction;
 import model.Location;
+import model.LocationRange;
 import model.TextEditorModel;
 
 import javax.swing.*;
@@ -55,6 +56,7 @@ public class TextEditor extends JComponent implements
 
         //What to do when cursor location changes.
         mTextEditorModel.addCursorObserver(loc -> repaint());
+        mTextEditorModel.addTextObserver(this::repaint);
     }
 
     /**
@@ -124,49 +126,98 @@ public class TextEditor extends JComponent implements
     @Override
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
-        paintCursor(g);
-        paintTestText(g);
-    }
 
-    /**
-     * Method draws a cursor line at the current cursor location.
-     *
-     * @param g {@link Graphics}.
-     */
-    private void paintCursor(Graphics g) {
-        //        Paint cursor.
         final int verticalStep = g.getFontMetrics().getMaxAscent();
-        Location cursorLocation = mTextEditorModel.getCursorLocation();
-        String subString = mTextEditorModel
-                .linesRange(cursorLocation.getY(), cursorLocation.getY() + 1)
-                .next()
+
+        //region SelectionPaint
+        final LocationRange selectionRange = mTextEditorModel.getSelectionRange();
+        if (selectionRange != null) {
+            Location start = selectionRange.getBottomRightStart();
+            Location end = selectionRange.getBottomRightEnd();
+
+            if (start.getY() == end.getY()) {
+                //region RectForSameLine
+                final String substringSelection = mTextEditorModel.getLine(start.getY())
+                        .substring(start.getX(), end.getX());
+                final String substringStart = mTextEditorModel.getLine(start.getY())
+                        .substring(0, start.getX());
+                final int substringStartWidth = g.getFontMetrics().stringWidth(substringStart);
+
+                g.setColor(Color.orange);
+                g.fillRect(
+                        substringStartWidth + mPadding,
+                        start.getY() * verticalStep + mPadding,
+                        g.getFontMetrics().stringWidth(substringSelection),
+                        verticalStep + 2
+                );
+                g.setColor(Color.black);
+                //endregion
+            } else {
+                //region RectForStart
+                final String substringStartPos = mTextEditorModel.getLine(start.getY())
+                        .substring(0, start.getX());
+                final String startSubstring = mTextEditorModel.getLine(start.getY())
+                        .substring(start.getX(), mTextEditorModel.getLine(start.getY()).length());
+                final int substringStartWidth = g.getFontMetrics().stringWidth(substringStartPos);
+
+                g.setColor(Color.orange);
+                g.fillRect(
+                        substringStartWidth + mPadding,
+                        start.getY() * verticalStep + mPadding,
+                        g.getFontMetrics().stringWidth(startSubstring),
+                        verticalStep + 2
+                );
+                g.setColor(Color.black);
+                //endregion
+
+                //region RectForBetween
+                for (int i = start.getY() + 1; i < end.getY(); i++) {
+                    final String line = mTextEditorModel.getLine(i);
+                    final int width = g.getFontMetrics().stringWidth(line);
+                    g.setColor(Color.orange);
+                    g.fillRect(
+                            mPadding,
+                            i * verticalStep + mPadding,
+                            width,
+                            verticalStep + 2
+                    );
+                    g.setColor(Color.black);
+                }
+                //endregion
+
+                //region RectForEnd
+                final String substringEnd = mTextEditorModel.getLine(end.getY())
+                        .substring(0, end.getX());
+                final int substringEndWidth = g.getFontMetrics().stringWidth(substringEnd);
+
+                g.setColor(Color.orange);
+                g.fillRect(
+                        mPadding,
+                        end.getY() * verticalStep + mPadding,
+                        substringEndWidth,
+                        verticalStep + 2
+                );
+                g.setColor(Color.black);
+                //endregion
+            }
+        }
+        //endregion
+
+        //region cursorPaint
+        final Location cursorLocation = mTextEditorModel.getCursorLocation();
+        final String cursorSubstring = mTextEditorModel.getLine(cursorLocation.getY())
                 .substring(0, cursorLocation.getX());
-        final int horizontalStep = g.getFontMetrics().stringWidth(subString);
-
+        final int cursorSubstringWidth = g.getFontMetrics().stringWidth(cursorSubstring);
 //        System.out.println(cursorLocation.toString());
-        g.drawRect(
-                50,
-                50,
-                50,
-                50
-        );
-
         g.drawLine(
-                horizontalStep + mPadding,
+                cursorSubstringWidth + mPadding,
                 cursorLocation.getY() * verticalStep + mPadding,
-                horizontalStep + mPadding,
+                cursorSubstringWidth + mPadding,
                 (cursorLocation.getY() * verticalStep + mPadding) + verticalStep
         );
-    }
+        //endregion
 
-    /**
-     * Method paints test text.
-     *
-     * @param g {@link Graphics}.
-     */
-    private void paintTestText(Graphics g) {
-        final int verticalStep = g.getFontMetrics().getMaxAscent();
-
+        //region testText
         Point writingCoordinates = new Point(
                 mPadding,
                 verticalStep + mPadding
@@ -175,6 +226,7 @@ public class TextEditor extends JComponent implements
             g.drawString(s, writingCoordinates.x, writingCoordinates.y);
             writingCoordinates.y += verticalStep;
         });
+        //endregion
     }
 
     /**
@@ -182,7 +234,16 @@ public class TextEditor extends JComponent implements
      */
     @Override
     public void onRightMove() {
-        mTextEditorModel.moveCursorRight();
+        LocationRange selectionRange = mTextEditorModel.getSelectionRange();
+        Location cursorLocation = mTextEditorModel.getCursorLocation();
+
+        if (selectionRange != null) {
+            cursorLocation.setLocation(selectionRange.getBottomRightEnd());
+            repaint();
+            mTextEditorModel.setSelectionRange(null);
+        } else {
+            mTextEditorModel.moveCursorRight();
+        }
     }
 
     /**
@@ -190,7 +251,16 @@ public class TextEditor extends JComponent implements
      */
     @Override
     public void onLeftMove() {
-        mTextEditorModel.moveCursorLeft();
+        LocationRange selectionRange = mTextEditorModel.getSelectionRange();
+        Location cursorLocation = mTextEditorModel.getCursorLocation();
+
+        if (selectionRange != null) {
+            cursorLocation.setLocation(selectionRange.getBottomRightStart());
+            repaint();
+            mTextEditorModel.setSelectionRange(null);
+        } else {
+            mTextEditorModel.moveCursorLeft();
+        }
     }
 
     /**
@@ -199,6 +269,7 @@ public class TextEditor extends JComponent implements
     @Override
     public void onUpMove() {
         mTextEditorModel.moveCursorUp();
+        mTextEditorModel.setSelectionRange(null);
     }
 
     /**
@@ -207,6 +278,7 @@ public class TextEditor extends JComponent implements
     @Override
     public void onDownMove() {
         mTextEditorModel.moveCursorDown();
+        mTextEditorModel.setSelectionRange(null);
     }
 
     /**
@@ -214,7 +286,19 @@ public class TextEditor extends JComponent implements
      */
     @Override
     public void onSelectionRightMove() {
-        System.out.println("Selection right move");
+        LocationRange selectionRange = mTextEditorModel.getSelectionRange();
+        if (selectionRange == null) {
+            Location cursorLocation = mTextEditorModel.getCursorLocation();
+            selectionRange = new LocationRange(
+                    new Location(cursorLocation),
+                    cursorLocation
+            );
+            mTextEditorModel.setSelectionRange(selectionRange);
+            mTextEditorModel.moveCursorRight();
+        } else {
+            mTextEditorModel.moveCursorRight();
+        }
+        System.out.println(selectionRange.toString());
     }
 
     /**
@@ -222,7 +306,19 @@ public class TextEditor extends JComponent implements
      */
     @Override
     public void onSelectionLeftMove() {
-
+        LocationRange selectionRange = mTextEditorModel.getSelectionRange();
+        if (selectionRange == null) {
+            Location cursorLocation = mTextEditorModel.getCursorLocation();
+            selectionRange = new LocationRange(
+                    new Location(cursorLocation),
+                    cursorLocation
+            );
+            mTextEditorModel.setSelectionRange(selectionRange);
+            mTextEditorModel.moveCursorLeft();
+        } else {
+            mTextEditorModel.moveCursorLeft();
+        }
+        System.out.println(selectionRange.toString());
     }
 
     /**
@@ -230,7 +326,19 @@ public class TextEditor extends JComponent implements
      */
     @Override
     public void onSelectionUpMove() {
-
+        LocationRange selectionRange = mTextEditorModel.getSelectionRange();
+        if (selectionRange == null) {
+            Location cursorLocation = mTextEditorModel.getCursorLocation();
+            selectionRange = new LocationRange(
+                    new Location(cursorLocation),
+                    cursorLocation
+            );
+            mTextEditorModel.setSelectionRange(selectionRange);
+            mTextEditorModel.moveCursorUp();
+        } else {
+            mTextEditorModel.moveCursorUp();
+        }
+        System.out.println(selectionRange.toString());
     }
 
     /**
@@ -238,6 +346,18 @@ public class TextEditor extends JComponent implements
      */
     @Override
     public void onSelectionDownMove() {
-
+        LocationRange selectionRange = mTextEditorModel.getSelectionRange();
+        if (selectionRange == null) {
+            Location cursorLocation = mTextEditorModel.getCursorLocation();
+            selectionRange = new LocationRange(
+                    new Location(cursorLocation),
+                    cursorLocation
+            );
+            mTextEditorModel.setSelectionRange(selectionRange);
+            mTextEditorModel.moveCursorDown();
+        } else {
+            mTextEditorModel.moveCursorDown();
+        }
+        System.out.println(selectionRange.toString());
     }
 }

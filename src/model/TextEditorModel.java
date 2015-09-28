@@ -1,7 +1,5 @@
 package model;
 
-import javafx.beans.binding.StringBinding;
-
 import java.util.*;
 
 /**
@@ -9,10 +7,11 @@ import java.util.*;
  */
 public class TextEditorModel {
 
-    private static final int mStep = 1;
-
     private List<String> mLines;
     private Location mCursorLocation;
+    /**
+     * Can be null.
+     */
     private LocationRange mSelectionRange;
 
     private Set<CursorObserver> mCursorObservers;
@@ -36,8 +35,9 @@ public class TextEditorModel {
 
     /**
      * Method returns current text selection range.
+     * If the selection didn't exist previously this method will return null.
      *
-     * @return {@link LocationRange}.
+     * @return {@link LocationRange} which can be null if the selection didn't previously exist.
      */
     public LocationRange getSelectionRange() {
         return mSelectionRange;
@@ -87,6 +87,21 @@ public class TextEditorModel {
     }
 
     /**
+     * Returns text line (String) located at the given parameter.
+     * Parameter starts at 0.
+     *
+     * @param index primitive integer.
+     * @return {@link String}.
+     */
+    public String getLine(int index) {
+        if (index < 0 || index > mLines.size() - 1) {
+            throw new UnsupportedOperationException("Given parameter is outside of boundaries.");
+        }
+
+        return mLines.get(index);
+    }
+
+    /**
      * Method adds a {@link CursorObserver} to {@link TextEditorModel}.
      * Duplicate observers are not allowed.
      *
@@ -118,7 +133,7 @@ public class TextEditorModel {
      */
     public void moveCursorLeft() {
         try {
-            mCursorLocation.setLocation(getLeftLocation());
+            mCursorLocation.setLocation(getLeftLocation(mCursorLocation));
         } catch (UnsupportedOperationException e) {
             return;
         }
@@ -127,18 +142,19 @@ public class TextEditorModel {
     }
 
     /**
-     * Returns first location, left to the cursor.
+     * Returns the first left location, relative to the given parameter.
      *
+     * @param currentLocation location to be used as a relative point.
      * @return {@link Location}
      * @throws UnsupportedOperationException if the cursor doesn't have a left location.
      */
-    private Location getLeftLocation() {
+    public Location getLeftLocation(Location currentLocation) {
         if (mCursorLocation.getY() == 0 && mCursorLocation.getX() == 0) {
             throw new UnsupportedOperationException("Left location doesn't exist.");
         }
 
-        int x = mCursorLocation.getX();
-        int y = mCursorLocation.getY();
+        int x = currentLocation.getX();
+        int y = currentLocation.getY();
 
         if (x == 0) {
             return new Location(
@@ -158,7 +174,7 @@ public class TextEditorModel {
      */
     public void moveCursorRight() {
         try {
-            mCursorLocation.setLocation(getRightLocation());
+            mCursorLocation.setLocation(getRightLocation(mCursorLocation));
         } catch (UnsupportedOperationException e) {
             return;
         }
@@ -167,19 +183,20 @@ public class TextEditorModel {
     }
 
     /**
-     * Returns the first location, right to the cursor.
+     * Returns the first right location relative to the given parameter location.
      *
+     * @param currentLocation location to be used as a relative point.
      * @return {@link Location}.
      * @throws UnsupportedOperationException if the location to the right doesn't exist.
      */
-    private Location getRightLocation() {
+    public Location getRightLocation(Location currentLocation) {
         int lastIndexOnPage = mLines.get(mLines.size() - 1).length();
         if (mCursorLocation.getY() == mLines.size() - 1 && mCursorLocation.getX() == lastIndexOnPage) {
             throw new UnsupportedOperationException("Right location doesn't exist.");
         }
 
-        int x = mCursorLocation.getX();
-        int y = mCursorLocation.getY();
+        int x = currentLocation.getX();
+        int y = currentLocation.getY();
 
         int lastIndexInLine = mLines.get(y).length();
         if (x == lastIndexInLine) {
@@ -200,7 +217,7 @@ public class TextEditorModel {
      */
     public void moveCursorUp() {
         try {
-            mCursorLocation.setLocation(getUpLocation());
+            mCursorLocation.setLocation(getUpLocation(mCursorLocation));
         } catch (UnsupportedOperationException e) {
             return;
         }
@@ -214,9 +231,9 @@ public class TextEditorModel {
      * @return {@link Location}.
      * @throws UnsupportedOperationException if the location doesn't exist.
      */
-    private Location getUpLocation() {
-        int x = mCursorLocation.getX();
-        int y = mCursorLocation.getY();
+    public Location getUpLocation(Location currentLocation) {
+        int x = currentLocation.getX();
+        int y = currentLocation.getY();
 
         if (y == 0) {
             throw new UnsupportedOperationException("Up location doesn't exist.");
@@ -241,7 +258,7 @@ public class TextEditorModel {
      */
     public void moveCursorDown() {
         try {
-            mCursorLocation.setLocation(getDownLocation());
+            mCursorLocation.setLocation(getDownLocation(mCursorLocation));
         } catch (UnsupportedOperationException e) {
             return;
         }
@@ -255,9 +272,9 @@ public class TextEditorModel {
      * @return {@link Location}.
      * @throws UnsupportedOperationException if the location doesn't exist.
      */
-    private Location getDownLocation() {
-        int x = mCursorLocation.getX();
-        int y = mCursorLocation.getY();
+    public Location getDownLocation(Location currentLocation) {
+        int x = currentLocation.getX();
+        int y = currentLocation.getY();
 
         if (y == mLines.size() - 1) {
             throw new UnsupportedOperationException("Down location doesn't exist.");
@@ -309,7 +326,7 @@ public class TextEditorModel {
     public void deleteBefore() {
         Location leftLocation;
         try {
-            leftLocation = getLeftLocation();
+            leftLocation = getLeftLocation(mCursorLocation);
         } catch (UnsupportedOperationException e) {
             return;
         }
@@ -346,7 +363,6 @@ public class TextEditorModel {
         }
 
         updateTextObservers();
-        updateCursorObservers();
     }
 
     /**
