@@ -11,13 +11,14 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 
 /**
  * This component is a simple text editor.
  * -- in construction TODO: Update javaDoc.
  */
 public class TextEditor extends JComponent implements
-        CursorEventListener {
+        CursorEventListener, KeyListener {
 
     private static final int COMP_WIDTH = 500;
     private static final int COMP_HEIGHT = 500;
@@ -33,6 +34,8 @@ public class TextEditor extends JComponent implements
     private static final String SHIFT_RIGHT = "shift_right";
     private static final String SHIFT_UP = "shift_up";
     private static final String SHIFT_DOWN = "shift_down";
+    private static final String CONTROL_A = "shift_a";
+    private static final String ALPHA_NUMERIC = "alphanumeric";
 
     private TextEditorModel mTextEditorModel;
 
@@ -53,7 +56,6 @@ public class TextEditor extends JComponent implements
                 "How do you do!";
         mTextEditorModel = new TextEditorModel(initialText);
 
-
         //What to do when cursor location changes.
         mTextEditorModel.addCursorObserver(loc -> repaint());
         mTextEditorModel.addTextObserver(this::repaint);
@@ -66,13 +68,13 @@ public class TextEditor extends JComponent implements
         InputMap inputMap = getInputMap();
         ActionMap actionMap = getActionMap();
 
-        inputMap.put(KeyStroke.getKeyStroke("ENTER"), "CLOSE");
-        actionMap.put("CLOSE", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                System.exit(0);
-            }
-        });
+//        inputMap.put(KeyStroke.getKeyStroke("ENTER"), "CLOSE");
+//        actionMap.put("CLOSE", new AbstractAction() {
+//            @Override
+//            public void actionPerformed(ActionEvent e) {
+//                System.exit(0);
+//            }
+//        });
 
         //region CursorMovement
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0), RIGHT);
@@ -101,13 +103,23 @@ public class TextEditor extends JComponent implements
         actionMap.put(BACKSPACE, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                mTextEditorModel.deleteBefore();
+                LocationRange selection = mTextEditorModel.getSelectionRange();
+                if (selection != null) {
+                    mTextEditorModel.deleteRange(selection);
+                } else {
+                    mTextEditorModel.deleteBefore();
+                }
             }
         });
         actionMap.put(DELETE, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                mTextEditorModel.deleteAfter();
+                LocationRange selection = mTextEditorModel.getSelectionRange();
+                if (selection != null) {
+                    mTextEditorModel.deleteRange(selection);
+                } else {
+                    mTextEditorModel.deleteAfter();
+                }
             }
         });
         actionMap.put(SHIFT_RIGHT, new MoveCursorAction.Selection(Direction.RIGHT, this));
@@ -116,6 +128,7 @@ public class TextEditor extends JComponent implements
         actionMap.put(SHIFT_UP, new MoveCursorAction.Selection(Direction.UP, this));
         //endregion
 
+        addKeyListener(this);
     }
 
     /**
@@ -298,7 +311,7 @@ public class TextEditor extends JComponent implements
         } else {
             mTextEditorModel.moveCursorRight();
         }
-        System.out.println(selectionRange.toString());
+//        System.out.println(selectionRange.toString());
     }
 
     /**
@@ -318,7 +331,7 @@ public class TextEditor extends JComponent implements
         } else {
             mTextEditorModel.moveCursorLeft();
         }
-        System.out.println(selectionRange.toString());
+//        System.out.println(selectionRange.toString());
     }
 
     /**
@@ -338,7 +351,7 @@ public class TextEditor extends JComponent implements
         } else {
             mTextEditorModel.moveCursorUp();
         }
-        System.out.println(selectionRange.toString());
+//        System.out.println(selectionRange.toString());
     }
 
     /**
@@ -358,6 +371,31 @@ public class TextEditor extends JComponent implements
         } else {
             mTextEditorModel.moveCursorDown();
         }
-        System.out.println(selectionRange.toString());
+//        System.out.println(selectionRange.toString());
+    }
+
+    @Override
+    public void keyTyped(KeyEvent e) {
+        char c = e.getKeyChar();
+        LocationRange selection = mTextEditorModel.getSelectionRange();
+        System.out.println(e.getModifiers());
+        boolean asciiFilter = c != 8 &&
+                c != 127 &&
+                (e.getModifiers() == 0 || e.getModifiers() == InputEvent.SHIFT_MASK);
+//        c != 8 && c != 127
+        if (asciiFilter) {
+            if (selection != null) {
+                mTextEditorModel.deleteRange(selection);
+            }
+            mTextEditorModel.insert(c);
+        }
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {
     }
 }

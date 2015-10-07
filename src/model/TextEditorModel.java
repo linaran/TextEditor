@@ -9,6 +9,7 @@ public class TextEditorModel {
 
     private List<String> mLines;
     private Location mCursorLocation;
+
     /**
      * Can be null.
      */
@@ -16,12 +17,14 @@ public class TextEditorModel {
 
     private Set<CursorObserver> mCursorObservers;
     private Set<TextObserver> mTextObservers;
+    private ClipboardStack mClipboardStack;
 
     public TextEditorModel(String text) {
         mLines = new ArrayList<>(Arrays.asList(text.split("\n")));
         mCursorObservers = new HashSet<>();
         mTextObservers = new HashSet<>();
         mCursorLocation = new Location();
+        mClipboardStack = new ClipboardStack();
     }
 
     /**
@@ -99,6 +102,15 @@ public class TextEditorModel {
         }
 
         return mLines.get(index);
+    }
+
+    /**
+     * Returns the {@link ClipboardStack} for this text model.
+     *
+     * @return {@link ClipboardStack}.
+     */
+    public ClipboardStack getClipboardStack() {
+        return mClipboardStack;
     }
 
     /**
@@ -366,78 +378,60 @@ public class TextEditorModel {
     }
 
     /**
-     * Removes all text selected with the parameter.
-     * If the parameter selects something that goes outside the borders of the text
-     * IllegalArgumentException will be thrown.
+     * Removes any text contained in given parameter.
+     * This method will automatically set the selection range to null.
      *
-     * @param range {@link LocationRange}, selected text to be deleted.
-     * @throws IllegalArgumentException if parameter selects something outside the borders of the text.
+     * @param range {@link LocationRange}.
      */
     public void deleteRange(LocationRange range) {
         if (!isSelectionLegal(range)) {
-            throw new IllegalArgumentException("Selection range is outside the text borders.");
-        }
-        if (range.getStart().equals(range.getEnd())) {
-            return;
+            throw new IllegalArgumentException("Given selection is outside the boundaries of the text.");
         }
 
-        Location start;
-        Location end;
-        if (range.getStart().getY() != range.getEnd().getY()) {
-            if (range.getStart().getY() < range.getEnd().getY()) {
-                start = range.getStart();
-                end = range.getEnd();
-            } else {
-                start = range.getEnd();
-                end = range.getStart();
-            }
+        final Location start = range.getBottomRightStart();
+        final Location end = range.getBottomRightEnd();
 
-            //region StartStringDeletion
-            String startString = mLines.get(start.getY());
-            if (start.getX() != startString.length()) {
-                StringBuilder sb = new StringBuilder(startString);
-                sb.delete(start.getX(), startString.length());
-                mLines.set(start.getY(), sb.toString());
-            }
-            //endregion
-
-            //region EndStringDeletion
-            String endString = mLines.get(end.getY());
-            if (end.getX() != 0) {
-                StringBuilder sb = new StringBuilder(endString);
-                sb.delete(0, end.getX());
-                mLines.set(end.getY(), sb.toString());
-            }
-            //endregion
-
-            //region RestDeletion
-            for (int i = start.getY() + 1; i < end.getY(); i++) {
+        if (start.getY() == end.getY()) {
+            deleteInLine(start.getY(), start.getX(), end.getX());
+        } else {
+//            Not thoroughly tested.
+            deleteInLine(start.getY(), start.getX(), mLines.get(start.getY()).length());
+            deleteInLine(end.getY(), 0, end.getX());
+            mLines.set(start.getY(), mLines.get(start.getY()) + mLines.get(end.getY()));
+            for (int i = end.getY(); i >= start.getY() + 1; i--) {
                 mLines.remove(i);
             }
-            //endregion
-        } else {
-            if (range.getStart().getX() < range.getEnd().getX()) {
-                start = range.getStart();
-                end = range.getEnd();
-            } else {
-                start = range.getEnd();
-                end = range.getStart();
-            }
-
-            StringBuilder sb = new StringBuilder(mLines.get(start.getY()));
-            sb.delete(start.getX(), end.getX());
-            mLines.set(start.getY(), sb.toString());
         }
 
-        mCursorLocation.setLocation(start.getX(), start.getY());
+        mCursorLocation.setLocation(start);
+        mSelectionRange = null;
 
         updateCursorObservers();
         updateTextObservers();
     }
 
     /**
+     * Deletes text in a line. Be sure to update cursor and text observers after using this method.
+     * <b>Notice</b>: This method will never remove a line from text! It will empty the line but not remove it.
+     * For line removal use {@link List#remove(int)} method.
+     *
+     * @param lineNumber primitive int to tell in which line to delete text.
+     * @param start      inclusive index where to begin deletion.
+     * @param end        exclusive index where to end deletion.
+     */
+    private void deleteInLine(int lineNumber, int start, int end) {
+        if (start > end) {
+            throw new IllegalArgumentException("Starting index cannot be bigger to the ending index.");
+        }
+
+        StringBuilder sb = new StringBuilder(mLines.get(lineNumber));
+        sb.delete(start, end);
+        mLines.set(lineNumber, sb.toString());
+    }
+
+    /**
      * Method checks if given {@link Location} object is legal on current {@link TextEditorModel}.
-     * Returns true if location is true.
+     * Returns true if location is legal.
      *
      * @param location {@link Location}.
      * @return primitive boolean, is true if location is legal.
@@ -468,5 +462,51 @@ public class TextEditorModel {
         Location end = range.getEnd();
 
         return !(!isLocationLegal(start) || !isLocationLegal(end));
+    }
+
+    /**
+     * Inserts a character at the current position of the cursor.
+     *
+     * @param c primitive char.
+     */
+    public void insert(char c) {
+        String line = mLines.get(mCursorLocation.getY());
+        if (c == 10) {
+            String beginString = mLines.get(mCursorLocation.getY()).substring(0, mCursorLocation.getX());
+            String endString = mLines.get(mCursorLocation.getY()).substring(mCursorLocation.getX());
+            mLines.set(mCursorLocation.getY(), beginString);
+            mLines.add(mCursorLocation.getY() + 1, endString);
+            mCursorLocation.setLocation(0, mCursorLocation.getY() + 1);
+            updateCursorObservers();
+        } else {
+            StringBuilder sb = new StringBuilder(line);
+            sb.insert(mCursorLocation.getX(), c);
+            mLines.set(mCursorLocation.getY(), sb.toString());
+            moveCursorRight(); // This will update cursor observers.
+        }
+        updateTextObservers();
+    }
+
+    /**
+     * Inserts a string at the current position of the cursor.
+     *
+     * @param text {@link String}.
+     */
+    public void insert(String text) {
+        List<String> inputTextLines = new ArrayList<>(Arrays.asList(text.split("\n")));
+
+        if (inputTextLines.size() == 1) {
+            String line = mLines.get(mCursorLocation.getY());
+            StringBuilder sb = new StringBuilder(line);
+            sb.insert(mCursorLocation.getX(), text);
+            mLines.set(mCursorLocation.getY(), sb.toString());
+            mCursorLocation.setX(mCursorLocation.getX() + text.length());
+        } else {
+//            TODO: Inputting multiple lines.
+            return;
+        }
+
+        updateCursorObservers();
+        updateTextObservers();
     }
 }

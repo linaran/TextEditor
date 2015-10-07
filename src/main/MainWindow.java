@@ -12,6 +12,7 @@ public class MainWindow {
         frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 
         TextEditor textEditor = new TextEditor();
+        textEditor.setFocusTraversalKeysEnabled(false);
         frame.add(textEditor);
 
         frame.pack();
