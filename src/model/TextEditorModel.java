@@ -105,6 +105,34 @@ public class TextEditorModel {
     }
 
     /**
+     * Converts given {@link LocationRange} to the {@link String} it selects.
+     * Inside returning string, lines are separated by newlines.
+     *
+     * @param selection {@link LocationRange}.
+     * @return {@link String}.
+     */
+    public String selectionToString(LocationRange selection) {
+        if (!isSelectionLegal(selection)) {
+            throw new IllegalArgumentException("This selection goes outside of text boundaries");
+        }
+        Location start = selection.getBottomRightStart();
+        Location end = selection.getBottomRightEnd();
+        int deltaY = end.getY() - start.getY();
+
+        if (deltaY == 0) {
+            return mLines.get(start.getY()).substring(start.getX(), end.getX());
+        } else {
+            StringBuilder sb = new StringBuilder();
+            sb.append(mLines.get(start.getY()).substring(start.getX())).append("\n");
+            for (int i = start.getY() + 1; i < end.getY(); i++) {
+                sb.append(mLines.get(i)).append("\n");
+            }
+            sb.append(mLines.get(end.getY()).substring(0, end.getX()));
+            return sb.toString();
+        }
+    }
+
+    /**
      * Returns the {@link ClipboardStack} for this text model.
      *
      * @return {@link ClipboardStack}.
@@ -494,16 +522,29 @@ public class TextEditorModel {
      */
     public void insert(String text) {
         List<String> inputTextLines = new ArrayList<>(Arrays.asList(text.split("\n")));
+        if (text.charAt(text.length() - 1) == '\n') {
+            inputTextLines.add("");
+        }
 
         if (inputTextLines.size() == 1) {
-            String line = mLines.get(mCursorLocation.getY());
+            final String line = mLines.get(mCursorLocation.getY());
             StringBuilder sb = new StringBuilder(line);
             sb.insert(mCursorLocation.getX(), text);
             mLines.set(mCursorLocation.getY(), sb.toString());
             mCursorLocation.setX(mCursorLocation.getX() + text.length());
         } else {
-//            TODO: Inputting multiple lines.
-            return;
+            StringBuilder sb = new StringBuilder(mLines.get(mCursorLocation.getY()));
+            sb.insert(mCursorLocation.getX(), inputTextLines.get(0));
+            mLines.set(mCursorLocation.getY(), sb.toString());
+
+            for (int i = 1; i < inputTextLines.size(); i++) {
+                mLines.add(mCursorLocation.getY() + i, inputTextLines.get(i));
+            }
+
+            mCursorLocation.setLocation(
+                    inputTextLines.get(inputTextLines.size() - 1).length(),
+                    mCursorLocation.getY() + inputTextLines.size() - 1
+            );
         }
 
         updateCursorObservers();

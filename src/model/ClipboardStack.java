@@ -89,6 +89,13 @@ public class ClipboardStack {
         mClipboardObservers.forEach(model.ClipboardObserver::updateClipboard);
     }
 
-
+    /**
+     * Returns {@link String} representation of this object.
+     * @return {@link String}.
+     */
+    @Override
+    public String toString() {
+        return mTexts.toString();
+    }
 }
 
